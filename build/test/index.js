@@ -64,4 +64,15 @@ describe('provider', function () {
             (0, _expect2.default)(e.message.indexOf('time out')).to.be.greaterThan(-1);
         }
     });
+
+    it('test get function', async function () {
+        const a = await df.getData('i');
+        (0, _expect2.default)(a).equal('http://www.dev.baidu.com');
+
+        df.clearCache();
+        process.env.NODE_ENV = 'production';
+
+        const b = await df.getData('i');
+        (0, _expect2.default)(b).equal('http://www.baidu.com');
+    });
 });

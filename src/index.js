@@ -1,6 +1,6 @@
 import * as path from 'path';
 import * as async from 'async';
-import { cloneDeep, isString, extend, isFunction } from 'lodash';
+import { cloneDeep, isString, isFunction, assign } from 'lodash';
 
 const { slice } = Array.prototype;
 
@@ -10,6 +10,27 @@ const STATUS_EXCUTING = 3;
 const STATUS_COMPLETE = 4; 
 
 const notEntryErrorSymbol = Symbol('NotRetryError');
+
+const ENV_MAP = {
+    'production': 'prod',
+    'develop': 'dev',
+    'development': 'dev',
+};
+
+let UNDEFINED;
+
+export function getShortEnv(env) {
+    return ENV_MAP[env] || env;
+};
+
+export function getProp(obj, str) {
+    return str.split('.').reduce((prev, current) => {
+        if (!prev || !(prev instanceof Object)) {
+            return UNDEFINED;
+        }
+        return prev[current];
+    }, obj);
+}
 
 export class NotRetryError extends Error {
     type = notEntryErrorSymbol;
@@ -31,6 +52,8 @@ export class DataProvider {
     static timeout = 3000; // 每次重试的最长等待时间
     static interval = 0; // 重试之间需要间隔多长时间
     static retry = 3; // 重试次数
+    env = process.env.NODE_ENV; // 当前的env
+    config = {}; // 当前的config
 
     _listeners = [];
 
@@ -49,9 +72,30 @@ export class DataProvider {
     execute(ctx, args) {
 
     }
+
+    get(str) {
+        const env = getShortEnv(this.env);
+        if (!this.config) {
+            return UNDEFINED;
+        }
+
+        const defaultConfig = this.config.default;
+        const envConfig = this.config[env];
+
+        if (!str) {
+            return assign({}, defaultConfig, envConfig);
+        }
+
+        let value = getProp(envConfig, str);
+        if (value === UNDEFINED) {
+            value = getProp(defaultConfig, str);
+        }
+
+        return value;
+    }
 }
 
-const classCache = {};
+let classCache = {};
 
 const defaultConf = {
     getClass: (name) => {
@@ -70,7 +114,7 @@ export class DataFactory {
         }
 
         this.context = ctx;
-        this.conf = extend({}, defaultConf, conf);
+        this.conf = assign({}, defaultConf, conf);
     }
 
     getData(dataProviderName) {
@@ -272,5 +316,11 @@ export class DataFactory {
         });
     
         return isLoop;
+    }
+
+    clearCache() {
+        this.dataCache = {};
+        this.providerCache = {};
+        classCache = {};
     }
 }

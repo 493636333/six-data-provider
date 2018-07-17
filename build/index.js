@@ -4,6 +4,8 @@ Object.defineProperty(exports, "__esModule", {
     value: true
 });
 exports.DataFactory = exports.DataProvider = exports.NotRetryError = undefined;
+exports.getShortEnv = getShortEnv;
+exports.getProp = getProp;
 
 var _path = require('path');
 
@@ -26,6 +28,27 @@ const STATUS_COMPLETE = 4;
 
 const notEntryErrorSymbol = Symbol('NotRetryError');
 
+const ENV_MAP = {
+    'production': 'prod',
+    'develop': 'dev',
+    'development': 'dev'
+};
+
+let UNDEFINED;
+
+function getShortEnv(env) {
+    return ENV_MAP[env] || env;
+};
+
+function getProp(obj, str) {
+    return str.split('.').reduce((prev, current) => {
+        if (!prev || !(prev instanceof Object)) {
+            return UNDEFINED;
+        }
+        return prev[current];
+    }, obj);
+}
+
 class NotRetryError extends Error {
 
     constructor(error) {
@@ -46,6 +69,8 @@ class NotRetryError extends Error {
 exports.NotRetryError = NotRetryError;
 class DataProvider {
     constructor() {
+        this.env = process.env.NODE_ENV;
+        this.config = {};
         this._listeners = [];
         this.status = STATUS_INIT;
         this.response = null;
@@ -53,6 +78,8 @@ class DataProvider {
     // 每次重试的最长等待时间
     // 重试之间需要间隔多长时间
     // 重试次数
+    // 当前的env
+    // 当前的config
 
     // 当前状态
 
@@ -65,6 +92,27 @@ class DataProvider {
 
     // 从api获取数据
     execute(ctx, args) {}
+
+    get(str) {
+        const env = getShortEnv(this.env);
+        if (!this.config) {
+            return UNDEFINED;
+        }
+
+        const defaultConfig = this.config.default;
+        const envConfig = this.config[env];
+
+        if (!str) {
+            return (0, _lodash.assign)({}, defaultConfig, envConfig);
+        }
+
+        let value = getProp(envConfig, str);
+        if (value === UNDEFINED) {
+            value = getProp(defaultConfig, str);
+        }
+
+        return value;
+    }
 }
 
 exports.DataProvider = DataProvider;
@@ -72,10 +120,12 @@ DataProvider.deps = [];
 DataProvider.timeout = 3000;
 DataProvider.interval = 0;
 DataProvider.retry = 3;
-const classCache = {};
+let classCache = {};
 
 const defaultConf = {
-    getClass: name => {},
+    getClass: name => {
+        return `./data_provider/${name}.js`;
+    },
     rootPath: ''
 };
 class DataFactory {
@@ -85,12 +135,12 @@ class DataFactory {
         this.dataCache = {};
         this.providerCache = {};
 
-        if (!ctx || !conf) {
+        if (!ctx || !conf || !conf.rootPath) {
             throw new Error('params error');
         }
 
         this.context = ctx;
-        this.conf = (0, _lodash.extend)({}, defaultConf, conf);
+        this.conf = (0, _lodash.assign)({}, defaultConf, conf);
     }
 
     getData(dataProviderName) {
@@ -292,6 +342,12 @@ class DataFactory {
         });
 
         return isLoop;
+    }
+
+    clearCache() {
+        this.dataCache = {};
+        this.providerCache = {};
+        classCache = {};
     }
 }
 exports.DataFactory = DataFactory;
