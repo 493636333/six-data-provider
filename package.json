@@ -1,6 +1,6 @@
 {
   "name": "six-data-provider",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "six-data-provider",
   "main": "build/index.js",
   "scripts": {
